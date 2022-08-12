@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/gosuri/uilive"
 	"github.com/rs/zerolog"
 	"github.com/ssgreg/repeat"
 	"github.com/urfave/cli/v2"
@@ -15,13 +17,14 @@ import (
 
 type Handler struct {
 	logger zerolog.Logger
+	writer *uilive.Writer
 }
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	logger := zerolog.New(os.Stdout).Level(zerolog.DebugLevel).With().Timestamp().Logger()
+	logger := zerolog.New(os.Stdout).Level(zerolog.InfoLevel).With().Timestamp().Logger()
 
 	hdl := NewHandler(logger)
 
@@ -51,12 +54,17 @@ func main() {
 }
 
 func NewHandler(logger zerolog.Logger) *Handler {
+	writer := uilive.New()
+
 	return &Handler{
 		logger: logger,
+		writer: writer,
 	}
 }
 
 func (hdl *Handler) Start(ctx context.Context, conn, ip string) error {
+	hdl.writer.Start()
+
 	hdl.connect(ctx, conn)
 
 	ticker := time.NewTicker(time.Second * 10)
@@ -68,6 +76,8 @@ func (hdl *Handler) Start(ctx context.Context, conn, ip string) error {
 		case <-ctx.Done():
 			ticker.Stop()
 
+			hdl.writer.Stop()
+
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 			defer cancel()
 
@@ -75,14 +85,16 @@ func (hdl *Handler) Start(ctx context.Context, conn, ip string) error {
 		case <-ticker.C:
 			if err := hdl.ping(ctx, ip); err != nil {
 				fails++
+
+				fmt.Fprintf(hdl.writer, "Status: fail, pings %d\n", fails)
 			} else {
 				fails = 0
+
+				fmt.Fprintln(hdl.writer, "Status: ok")
 			}
 
 			if fails == 10 {
-				if err := hdl.disconnect(ctx); err != nil {
-					hdl.logger.Error().Err(err).Msg("disconnect fail")
-				}
+				_ = hdl.disconnect(ctx)
 
 				hdl.connect(ctx, conn)
 			}
@@ -91,7 +103,7 @@ func (hdl *Handler) Start(ctx context.Context, conn, ip string) error {
 }
 
 func (hdl *Handler) connect(ctx context.Context, conn string) {
-	hdl.logger.Info().Msg("start connection")
+	fmt.Fprintln(hdl.writer, "Connecting...")
 
 	delay := &repeat.ExponentialBackoffBuilder{}
 
@@ -113,11 +125,11 @@ func (hdl *Handler) connect(ctx context.Context, conn string) {
 		),
 	)
 
-	hdl.logger.Info().Msg("started connection")
+	fmt.Fprintln(hdl.writer, "Connected")
 }
 
 func (hdl *Handler) disconnect(ctx context.Context) error {
-	hdl.logger.Info().Msg("stop connection")
+	fmt.Fprintln(hdl.writer, "Disconnecting...")
 
 	cmd := exec.CommandContext(ctx, "nmcli", "connection", "down", "Office")
 
@@ -125,14 +137,12 @@ func (hdl *Handler) disconnect(ctx context.Context) error {
 		return err
 	}
 
-	hdl.logger.Info().Msg("stopped connection")
+	fmt.Fprintln(hdl.writer, "Disconnected")
 
 	return nil
 }
 
 func (hdl *Handler) ping(ctx context.Context, ip string) error {
-	hdl.logger.Info().Msg("ping")
-
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
@@ -141,8 +151,6 @@ func (hdl *Handler) ping(ctx context.Context, ip string) error {
 	if err := cmd.Run(); err != nil {
 		return err
 	}
-
-	hdl.logger.Info().Msg("ping ok")
 
 	return nil
 }
