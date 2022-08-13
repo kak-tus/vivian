@@ -76,12 +76,14 @@ func (hdl *Handler) Start(ctx context.Context, conn, ip string) error {
 		case <-ctx.Done():
 			ticker.Stop()
 
-			hdl.writer.Stop()
-
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 			defer cancel()
 
-			return hdl.disconnect(ctx)
+			_ = hdl.disconnect(ctx)
+
+			hdl.writer.Stop()
+
+			return nil
 		case <-ticker.C:
 			if err := hdl.ping(ctx, ip); err != nil {
 				fails++

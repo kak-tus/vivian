@@ -1,3 +1,6 @@
+v0.5.0 2022-08-13
+  - Fix write disconnect message.
+
 v0.3.0, v0.4.0 2022-08-12
   - Install.
 
