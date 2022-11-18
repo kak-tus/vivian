@@ -88,14 +88,16 @@ func (hdl *Handler) Start(ctx context.Context, conn, ip string) error {
 			if err := hdl.ping(ctx, ip); err != nil {
 				fails++
 
-				fmt.Fprintf(hdl.writer, "Status: fail, pings %d\n", fails)
+				_, _ = fmt.Fprintf(hdl.writer, "Status: fail, pings %d\n", fails)
 			} else {
 				fails = 0
 
-				fmt.Fprintln(hdl.writer, "Status: ok")
+				_, _ = fmt.Fprintln(hdl.writer, "Status: ok")
 			}
 
 			if fails == 10 {
+				fails = 0
+
 				_ = hdl.disconnect(ctx)
 
 				hdl.connect(ctx, conn)
@@ -105,7 +107,7 @@ func (hdl *Handler) Start(ctx context.Context, conn, ip string) error {
 }
 
 func (hdl *Handler) connect(ctx context.Context, conn string) {
-	fmt.Fprintln(hdl.writer, "Connecting...")
+	_, _ = fmt.Fprintln(hdl.writer, "Connecting...")
 
 	delay := &repeat.ExponentialBackoffBuilder{}
 
@@ -127,11 +129,11 @@ func (hdl *Handler) connect(ctx context.Context, conn string) {
 		),
 	)
 
-	fmt.Fprintln(hdl.writer, "Connected")
+	_, _ = fmt.Fprintln(hdl.writer, "Connected")
 }
 
 func (hdl *Handler) disconnect(ctx context.Context) error {
-	fmt.Fprintln(hdl.writer, "Disconnecting...")
+	_, _ = fmt.Fprintln(hdl.writer, "Disconnecting...")
 
 	cmd := exec.CommandContext(ctx, "nmcli", "connection", "down", "Office")
 
@@ -139,7 +141,7 @@ func (hdl *Handler) disconnect(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Fprintln(hdl.writer, "Disconnected")
+	_, _ = fmt.Fprintln(hdl.writer, "Disconnected")
 
 	return nil
 }
